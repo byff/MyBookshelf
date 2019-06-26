@@ -19,6 +19,8 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static android.text.TextUtils.isEmpty;
+
 @SuppressWarnings({"unused", "WeakerAccess"})
 public class StringUtils {
     private static final String TAG = "StringUtils";
@@ -308,7 +310,7 @@ public class StringUtils {
         // 此处用到了StringJoiner(JDK 8引入的类）
         // 先构造一个以参数delimiter为分隔符的StringJoiner对象
         StringJoiner joiner = new StringJoiner(delimiter);
-        for (CharSequence cs: elements) {
+        for (CharSequence cs : elements) {
             // 拼接字符
             joiner.add(cs);
         }
@@ -319,7 +321,7 @@ public class StringUtils {
         if (elements == null) return null;
         if (delimiter == null) delimiter = ",";
         StringJoiner joiner = new StringJoiner(delimiter);
-        for (CharSequence cs: elements) {
+        for (CharSequence cs : elements) {
             joiner.add(cs);
         }
         return joiner.toString();
@@ -331,7 +333,7 @@ public class StringUtils {
         return m.find();
     }
 
-    public static boolean isNumeric(String str){
+    public static boolean isNumeric(String str) {
         Pattern pattern = Pattern.compile("[0-9]*");
         Matcher isNum = pattern.matcher(str);
         return isNum.matches();
@@ -346,11 +348,19 @@ public class StringUtils {
         return url.substring(0, index);
     }
 
-    public static String trim(String string) {
-        if (string == null) {
-            return null;
+    // 移除字符串首尾空字符的高效方法(利用ASCII值判断,包括全角空格)
+    public static String trim(String s) {
+        if (isEmpty(s)) return "";
+        int start = 0, len = s.length();
+        int end = len - 1;
+        while ((start < end) && ((s.charAt(start) <= 0x20) || (s.charAt(start) == '　'))) {
+            ++start;
         }
-        return string.replaceAll("(^\\s+|\\s+$)", "");
+        while ((start < end) && ((s.charAt(end) <= 0x20) || (s.charAt(end) == '　'))) {
+            --end;
+        }
+        if (end < len) ++end;
+        return ((start > 0) || (end < len)) ? s.substring(start, end) : s;
     }
 
     public static String repeat(String str, int n) {
@@ -375,7 +385,7 @@ public class StringUtils {
     }
 
     public static String formatHtml(String html) {
-        if (TextUtils.isEmpty(html)) return html;
+        if (TextUtils.isEmpty(html)) return "";
         return html.replaceAll("(?i)<(br[\\s/]*|/*p.*?|/*div.*?)>", "\n")// 替换特定标签为换行符
                 .replaceAll("<[script>]*.*?>|&nbsp;", "")// 删除script标签对和空格转义符
                 .replaceAll("\\s*\\n+\\s*", "\n　　")// 移除空行,并增加段前缩进2个汉字

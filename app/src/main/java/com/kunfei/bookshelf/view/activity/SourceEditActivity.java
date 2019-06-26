@@ -107,11 +107,7 @@ public class SourceEditActivity extends MBaseActivity<SourceEditContract.Present
 
     public static void startThis(Object object, BookSourceBean sourceBean) {
         String key = String.valueOf(System.currentTimeMillis());
-        try {
-            BitIntentDataManager.getInstance().putData(key, sourceBean.clone());
-        } catch (CloneNotSupportedException e) {
-            BitIntentDataManager.getInstance().putData(key, sourceBean);
-        }
+        BitIntentDataManager.getInstance().putData(key, sourceBean.clone());
         if (object instanceof Activity) {
             Activity activity = (Activity) object;
             Intent intent = new Intent(activity, SourceEditActivity.class);
@@ -243,8 +239,8 @@ public class SourceEditActivity extends MBaseActivity<SourceEditContract.Present
         sourceEditList.add(new SourceEdit("ruleSearchName", bookSourceBean.getRuleSearchName(), R.string.rule_search_name));
         sourceEditList.add(new SourceEdit("ruleSearchAuthor", bookSourceBean.getRuleSearchAuthor(), R.string.rule_search_author));
         sourceEditList.add(new SourceEdit("ruleSearchKind", bookSourceBean.getRuleSearchKind(), R.string.rule_search_kind));
-        sourceEditList.add(new SourceEdit("ruleSearchIntroduce", bookSourceBean.getRuleSearchIntroduce(), R.string.rule_search_introduce));
         sourceEditList.add(new SourceEdit("ruleSearchLastChapter", bookSourceBean.getRuleSearchLastChapter(), R.string.rule_search_last_chapter));
+        sourceEditList.add(new SourceEdit("ruleSearchIntroduce", bookSourceBean.getRuleSearchIntroduce(), R.string.rule_search_introduce));
         sourceEditList.add(new SourceEdit("ruleSearchCoverUrl", bookSourceBean.getRuleSearchCoverUrl(), R.string.rule_search_cover_url));
         sourceEditList.add(new SourceEdit("ruleSearchNoteUrl", bookSourceBean.getRuleSearchNoteUrl(), R.string.rule_search_note_url));
         //详情页

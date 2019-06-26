@@ -13,7 +13,7 @@ import com.kunfei.bookshelf.dao.BookSourceBeanDao;
 import com.kunfei.bookshelf.model.analyzeRule.AnalyzeHeaders;
 import com.kunfei.bookshelf.model.impl.IHttpGetApi;
 import com.kunfei.bookshelf.utils.GsonUtils;
-import com.kunfei.bookshelf.utils.NetworkUtil;
+import com.kunfei.bookshelf.utils.NetworkUtils;
 import com.kunfei.bookshelf.utils.RxUtils;
 import com.kunfei.bookshelf.utils.StringUtils;
 
@@ -35,17 +35,17 @@ public class BookSourceManager {
 
     public static List<BookSourceBean> getSelectedBookSource() {
         return DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder()
-                    .where(BookSourceBeanDao.Properties.Enable.eq(true))
-                    .orderRaw(BookSourceBeanDao.Properties.Weight.columnName + " DESC")
-                    .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
-                    .list();
+                .where(BookSourceBeanDao.Properties.Enable.eq(true))
+                .orderRaw(BookSourceBeanDao.Properties.Weight.columnName + " DESC")
+                .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
+                .list();
     }
 
     public static List<BookSourceBean> getAllBookSource() {
         return DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder()
-                    .orderRaw(getBookSourceSort())
-                    .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
-                    .list();
+                .orderRaw(getBookSourceSort())
+                .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
+                .list();
     }
 
     public static List<BookSourceBean> getSelectedBookSourceBySerialNumber() {
@@ -173,14 +173,14 @@ public class BookSourceManager {
     public static Observable<List<BookSourceBean>> importSource(String string) {
         if (StringUtils.isTrimEmpty(string)) return null;
         string = string.trim();
-        if (NetworkUtil.isIPv4Address(string)) {
+        if (NetworkUtils.isIPv4Address(string)) {
             string = String.format("http://%s:65501", string);
         }
         if (StringUtils.isJsonType(string)) {
             return importBookSourceFromJson(string.trim())
                     .compose(RxUtils::toSimpleSingle);
         }
-        if (NetworkUtil.isUrl(string)) {
+        if (NetworkUtils.isUrl(string)) {
             return BaseModelImpl.getInstance().getRetrofitString(StringUtils.getBaseUrl(string), "utf-8")
                     .create(IHttpGetApi.class)
                     .get(string, AnalyzeHeaders.getMap(null))

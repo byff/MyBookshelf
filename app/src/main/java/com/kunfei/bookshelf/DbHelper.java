@@ -5,11 +5,11 @@ import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 
 import com.github.yuweiguocn.library.greendao.MigrationHelper;
+import com.kunfei.bookshelf.dao.BookChapterBeanDao;
 import com.kunfei.bookshelf.dao.BookInfoBeanDao;
 import com.kunfei.bookshelf.dao.BookShelfBeanDao;
 import com.kunfei.bookshelf.dao.BookSourceBeanDao;
 import com.kunfei.bookshelf.dao.BookmarkBeanDao;
-import com.kunfei.bookshelf.dao.ChapterListBeanDao;
 import com.kunfei.bookshelf.dao.CookieBeanDao;
 import com.kunfei.bookshelf.dao.DaoMaster;
 import com.kunfei.bookshelf.dao.DaoSession;
@@ -26,7 +26,7 @@ public class DbHelper {
     private SQLiteDatabase db;
     private DaoSession mDaoSession;
 
-    private DbHelper(){
+    private DbHelper() {
         DaoOpenHelper mHelper = new DaoOpenHelper(MApplication.getInstance(), "monkebook_db", null);
         db = mHelper.getWritableDatabase();
         db.setLocale(Locale.CHINESE);
@@ -35,10 +35,10 @@ public class DbHelper {
         mDaoSession = mDaoMaster.newSession();
     }
 
-    public static DbHelper getInstance(){
-        if(null == instance){
-            synchronized (DbHelper.class){
-                if(null == instance){
+    public static DbHelper getInstance() {
+        if (null == instance) {
+            synchronized (DbHelper.class) {
+                if (null == instance) {
                     instance = new DbHelper();
                 }
             }
@@ -58,6 +58,7 @@ public class DbHelper {
         DaoOpenHelper(Context context, String name, SQLiteDatabase.CursorFactory factory) {
             super(context, name, factory);
         }
+
         @Override
         @SuppressWarnings("unchecked")
         public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -67,12 +68,13 @@ public class DbHelper {
                         public void onCreateAllTables(Database db, boolean ifNotExists) {
                             DaoMaster.createAllTables(db, ifNotExists);
                         }
+
                         @Override
                         public void onDropAllTables(Database db, boolean ifExists) {
                             DaoMaster.dropAllTables(db, ifExists);
                         }
                     },
-                    BookShelfBeanDao.class, BookInfoBeanDao.class, ChapterListBeanDao.class,
+                    BookShelfBeanDao.class, BookInfoBeanDao.class, BookChapterBeanDao.class,
                     SearchHistoryBeanDao.class, BookSourceBeanDao.class,
                     ReplaceRuleBeanDao.class, BookmarkBeanDao.class, CookieBeanDao.class,
                     TxtChapterRuleBeanDao.class

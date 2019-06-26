@@ -32,25 +32,27 @@ import androidx.appcompat.widget.Toolbar;
 import com.google.android.material.appbar.AppBarLayout;
 import com.hwangjr.rxbus.RxBus;
 import com.kunfei.basemvplib.AppActivityManager;
+import com.kunfei.basemvplib.BitIntentDataManager;
 import com.kunfei.bookshelf.DbHelper;
 import com.kunfei.bookshelf.MApplication;
 import com.kunfei.bookshelf.R;
 import com.kunfei.bookshelf.base.MBaseActivity;
+import com.kunfei.bookshelf.bean.BookChapterBean;
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.bean.BookmarkBean;
-import com.kunfei.bookshelf.bean.ChapterListBean;
 import com.kunfei.bookshelf.bean.TxtChapterRuleBean;
 import com.kunfei.bookshelf.constant.RxBusTag;
 import com.kunfei.bookshelf.dao.TxtChapterRuleBeanDao;
 import com.kunfei.bookshelf.help.ChapterContentHelp;
 import com.kunfei.bookshelf.help.ReadBookControl;
+import com.kunfei.bookshelf.help.permission.Permissions;
+import com.kunfei.bookshelf.help.permission.PermissionsCompat;
 import com.kunfei.bookshelf.model.TxtChapterRuleManager;
 import com.kunfei.bookshelf.presenter.ReadBookPresenter;
 import com.kunfei.bookshelf.presenter.contract.ReadBookContract;
 import com.kunfei.bookshelf.service.ReadAloudService;
 import com.kunfei.bookshelf.utils.BatteryUtil;
-import com.kunfei.bookshelf.utils.NetworkUtil;
-import com.kunfei.bookshelf.utils.PermissionUtils;
+import com.kunfei.bookshelf.utils.NetworkUtils;
 import com.kunfei.bookshelf.utils.ScreenUtils;
 import com.kunfei.bookshelf.utils.SoftInputUtil;
 import com.kunfei.bookshelf.utils.StringUtils;
@@ -71,6 +73,7 @@ import com.kunfei.bookshelf.widget.modialog.DownLoadDialog;
 import com.kunfei.bookshelf.widget.modialog.InputDialog;
 import com.kunfei.bookshelf.widget.modialog.MoDialogHUD;
 import com.kunfei.bookshelf.widget.page.PageLoader;
+import com.kunfei.bookshelf.widget.page.PageLoaderNet;
 import com.kunfei.bookshelf.widget.page.PageView;
 import com.kunfei.bookshelf.widget.page.TxtChapter;
 import com.kunfei.bookshelf.widget.page.animation.PageAnimation;
@@ -81,6 +84,7 @@ import java.util.Objects;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import kotlin.Unit;
 
 
 /**
@@ -145,7 +149,6 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
     private ThisBatInfoReceiver batInfoReceiver;
     private ReadBookControl readBookControl = ReadBookControl.getInstance();
 
-    private Boolean showCheckPermission = false;
     private boolean autoPage = false;
     private boolean aloudNextPage;
 
@@ -180,6 +183,13 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
         if (mPresenter.getBookShelf() != null) {
             outState.putString("noteUrl", mPresenter.getBookShelf().getNoteUrl());
             outState.putBoolean("isAdd", isAdd);
+            String key = String.valueOf(System.currentTimeMillis());
+            String bookKey = "book" + key;
+            getIntent().putExtra("bookKey", bookKey);
+            BitIntentDataManager.getInstance().putData(bookKey, mPresenter.getBookShelf().clone());
+            String chapterListKey = "chapterList" + key;
+            getIntent().putExtra("chapterListKey", chapterListKey);
+            BitIntentDataManager.getInstance().putData(chapterListKey, mPresenter.getChapterList());
         }
     }
 
@@ -478,7 +488,7 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
      * 初始化播放界面
      */
     private void initMediaPlayer() {
-        mediaPlayerPop.setIvChapterClickListener(v -> ChapterListActivity.startThis(ReadBookActivity.this, mPresenter.getBookShelf()));
+        mediaPlayerPop.setIvChapterClickListener(v -> ChapterListActivity.startThis(ReadBookActivity.this, mPresenter.getBookShelf(), mPresenter.getChapterList()));
         mediaPlayerPop.setIvTimerClickListener(v -> ReadAloudService.setTimer(getContext(), 10));
         mediaPlayerPop.setIvCoverBgClickListener(v -> {
             flMenu.setVisibility(View.VISIBLE);
@@ -552,8 +562,8 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
             @Override
             public void openChapterList() {
                 ReadBookActivity.this.popMenuOut();
-                if (mPresenter.getBookShelf() != null && !mPresenter.getBookShelf().realChapterListEmpty()) {
-                    mHandler.postDelayed(() -> ChapterListActivity.startThis(ReadBookActivity.this, mPresenter.getBookShelf()), menuTopOut.getDuration());
+                if (!mPresenter.getChapterList().isEmpty()) {
+                    mHandler.postDelayed(() -> ChapterListActivity.startThis(ReadBookActivity.this, mPresenter.getBookShelf(), mPresenter.getChapterList()), menuTopOut.getDuration());
                 }
             }
 
@@ -716,23 +726,26 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
      * 加载阅读页面
      */
     private void initPageView() {
-        mPageLoader = pageView.getPageLoader(this, mPresenter.getBookShelf());
-        mPageLoader.updateBattery(BatteryUtil.getLevel(this));
-        mPageLoader.setOnPageChangeListener(
-                new PageLoader.OnPageChangeListener() {
+        mPageLoader = pageView.getPageLoader(this, mPresenter.getBookShelf(),
+                new PageLoader.Callback() {
+                    @Override
+                    public List<BookChapterBean> getChapterList() {
+                        return mPresenter.getChapterList();
+                    }
 
                     /**
                      * @param pos:切换章节的序号
                      */
                     @Override
                     public void onChapterChange(int pos) {
-                        mPresenter.getBookShelf().upDurChapterName();
-                        mPresenter.getBookShelf().upLastChapterName();
+                        if (mPresenter.getChapterList().isEmpty()) return;
+                        if (mPresenter.getChapterList().size() - 1 < pos) return;
+                        mPresenter.getBookShelf().setDurChapterName(mPresenter.getChapterList().get(pos).getDurChapterName());
                         actionBar.setTitle(mPresenter.getBookShelf().getBookInfoBean().getName());
                         if (mPresenter.getBookShelf().getChapterListSize() > 0) {
-                            tvChapterName.setText(mPresenter.getBookShelf().getChapter(pos).getDurChapterName());
-                            tvUrl.setText(NetworkUtil.getAbsoluteURL(mPresenter.getBookShelf().getBookInfoBean().getChapterUrl(),
-                                    mPresenter.getBookShelf().getChapter(pos).getDurChapterUrl()));
+                            tvChapterName.setText(mPresenter.getChapterList().get(pos).getDurChapterName());
+                            tvUrl.setText(NetworkUtils.getAbsoluteURL(mPresenter.getBookShelf().getBookInfoBean().getChapterUrl(),
+                                    mPresenter.getChapterList().get(pos).getDurChapterUrl()));
                         } else {
                             tvChapterName.setText("");
                             tvUrl.setText("");
@@ -759,12 +772,11 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
                      * @param chapters：返回章节目录
                      */
                     @Override
-                    public void onCategoryFinish(List<ChapterListBean> chapters) {
-                        mPresenter.getBookShelf().getBookInfoBean().setChapterList(chapters);
+                    public void onCategoryFinish(List<BookChapterBean> chapters) {
+                        mPresenter.setChapterList(chapters);
                         mPresenter.getBookShelf().setChapterListSize(chapters.size());
-                        mPresenter.saveBook();
-                        mPresenter.getBookShelf().upDurChapterName();
-                        mPresenter.getBookShelf().upLastChapterName();
+                        mPresenter.getBookShelf().setDurChapterName(chapters.get(mPresenter.getBookShelf().getDurChapter()).getDurChapterName());
+                        mPresenter.getBookShelf().setLastChapterName(chapters.get(mPresenter.getChapterList().size() - 1).getDurChapterName());
                         mPresenter.saveProgress();
                     }
 
@@ -795,7 +807,7 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
                         readBottomMenu.getReadProgress().post(
                                 () -> readBottomMenu.getReadProgress().setProgress(pageIndex)
                         );
-                        Long end = mPresenter.getBookShelf().getChapter(mPresenter.getBookShelf().getDurChapter()).getEnd();
+                        Long end = mPresenter.getChapterList().get(mPresenter.getBookShelf().getDurChapter()).getEnd();
                         int audioSize = end != null ? end.intValue() : 0;
                         mediaPlayerPop.upAudioSize(audioSize);
                         mediaPlayerPop.upAudioDur(mPresenter.getBookShelf().getDurChapterPage());
@@ -830,6 +842,7 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
                     }
                 }
         );
+        mPageLoader.updateBattery(BatteryUtil.getLevel(this));
         pageView.setTouchListener(new PageView.TouchListener() {
             @Override
             public void onTouch() {
@@ -933,13 +946,15 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
      * 刷新当前章节
      */
     private void refreshDurChapter() {
-        if (!NetworkUtil.isNetWorkAvailable()) {
+        if (!NetworkUtils.isNetWorkAvailable()) {
             toast("网络不可用，无法刷新当前章节!");
             return;
         }
         ReadBookActivity.this.popMenuOut();
         if (mPageLoader != null) {
-            mPageLoader.refreshDurChapter();
+            if (mPageLoader instanceof PageLoaderNet) {
+                ((PageLoaderNet) mPageLoader).refreshDurChapter();
+            }
         }
     }
 
@@ -999,7 +1014,7 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
      * 换源
      */
     private void changeSource() {
-        if (!NetworkUtil.isNetWorkAvailable()) {
+        if (!NetworkUtils.isNetWorkAvailable()) {
             toast(R.string.network_connection_unavailable);
             return;
         }
@@ -1021,7 +1036,7 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
      * 下载
      */
     private void download() {
-        if (!NetworkUtil.isNetWorkAvailable()) {
+        if (!NetworkUtils.isNetWorkAvailable()) {
             toast(R.string.network_connection_unavailable);
             return;
         }
@@ -1193,7 +1208,7 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
         if (isAdd || mPresenter.getBookShelf() == null
                 || TextUtils.isEmpty(mPresenter.getBookShelf().getBookInfoBean().getName())) {
             return true;
-        } else if (mPresenter.getBookShelf().realChapterListEmpty()) {
+        } else if (mPresenter.getChapterList().isEmpty()) {
             mPresenter.removeFromShelf();
             return true;
         } else {
@@ -1471,23 +1486,14 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
 
     @Override
     public void openBookFromOther() {
-        PermissionUtils.checkMorePermissions(this, MApplication.PerList, new PermissionUtils.PermissionCheckCallback() {
-            @Override
-            public void onHasPermission() {
-                mPresenter.openBookFromOther(ReadBookActivity.this);
-            }
-
-            @Override
-            public void onUserHasAlreadyTurnedDown(String... permission) {
-                ReadBookActivity.this.toast(R.string.please_grant_storage_permission);
-            }
-
-            @Override
-            public void onAlreadyTurnedDownAndNoAsk(String... permission) {
-                ReadBookActivity.this.toast(R.string.please_grant_storage_permission);
-                PermissionUtils.requestMorePermissions(ReadBookActivity.this, permission, MApplication.RESULT__PERMS);
-            }
-        });
+        new PermissionsCompat.Builder(this)
+                .addPermissions(Permissions.READ_EXTERNAL_STORAGE, Permissions.WRITE_EXTERNAL_STORAGE)
+                .rationale(R.string.please_grant_storage_permission)
+                .onGranted((requestCode) -> {
+                    mPresenter.openBookFromOther(ReadBookActivity.this);
+                    return Unit.INSTANCE;
+                })
+                .request();
     }
 
     /**
@@ -1515,28 +1521,6 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        PermissionUtils.checkMorePermissions(this, MApplication.PerList, new PermissionUtils.PermissionCheckCallback() {
-            @Override
-            public void onHasPermission() {
-                mPresenter.openBookFromOther(ReadBookActivity.this);
-            }
-
-            @Override
-            public void onUserHasAlreadyTurnedDown(String... permission) {
-                ReadBookActivity.this.toast(R.string.open_local_book_per);
-            }
-
-            @Override
-            public void onAlreadyTurnedDownAndNoAsk(String... permission) {
-                ReadBookActivity.this.toast(R.string.open_local_book_per);
-                PermissionUtils.toAppSetting(ReadBookActivity.this);
-            }
-        });
-    }
-
-    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         initImmersionBar();
@@ -1556,10 +1540,6 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
             if (!mPageLoader.updateBattery(BatteryUtil.getLevel(this))) {
                 mPageLoader.updateTime();
             }
-        }
-        if (showCheckPermission && mPresenter.getOpen_from() == ReadBookPresenter.OPEN_FROM_OTHER && PermissionUtils.checkMorePermissions(this, MApplication.PerList).isEmpty()) {
-            showCheckPermission = true;
-            mPresenter.openBookFromOther(this);
         }
     }
 
@@ -1596,14 +1576,21 @@ public class ReadBookActivity extends MBaseActivity<ReadBookContract.Presenter> 
             Intent intent = new Intent(this, MainActivity.class);
             startActivity(intent);
         }
-        RxBus.get().post(RxBusTag.AUTO_BACKUP, true);
+        new PermissionsCompat.Builder(this)
+                .addPermissions(Permissions.READ_EXTERNAL_STORAGE, Permissions.WRITE_EXTERNAL_STORAGE)
+                .rationale("自动备份需要存储权限")
+                .onGranted((requestCode) -> {
+                    RxBus.get().post(RxBusTag.AUTO_BACKUP, true);
+                    return Unit.INSTANCE;
+                })
+                .request();
         super.finish();
     }
 
     @Override
     public void changeSourceFinish(BookShelfBean book) {
-        if (mPageLoader != null) {
-            mPageLoader.changeSourceFinish(book);
+        if (mPageLoader != null && mPageLoader instanceof PageLoaderNet) {
+            ((PageLoaderNet) mPageLoader).changeSourceFinish(book);
         }
     }
 

@@ -32,8 +32,6 @@ import static com.kunfei.bookshelf.utils.ScreenUtils.getDisplayMetrics;
  */
 public class PageView extends View {
 
-    private final static String TAG = PageView.class.getSimpleName();
-
     private ReadBookActivity activity;
 
     private int mViewWidth = 0; // 当前View的宽
@@ -174,9 +172,9 @@ public class PageView extends View {
         }
     }
 
-    private void startHorizonPageAnim(PageAnimation.Direction direction) {
+    private synchronized void startHorizonPageAnim(PageAnimation.Direction direction) {
         if (mTouchListener == null) return;
-        //是否正在执行动画
+        //结束动画
         mPageAnim.abortAnim();
         if (direction == PageAnimation.Direction.NEXT) {
             int x = mViewWidth;
@@ -193,7 +191,7 @@ public class PageView extends View {
                 ((HorizonPageAnim) mPageAnim).setNoNext(true);
                 return;
             }
-        } else {
+        } else if (direction == PageAnimation.Direction.PREV) {
             int x = 0;
             int y = mViewHeight;
             //初始化动画
@@ -207,6 +205,8 @@ public class PageView extends View {
                 ((HorizonPageAnim) mPageAnim).setNoNext(true);
                 return;
             }
+        } else {
+            return;
         }
         ((HorizonPageAnim) mPageAnim).setNoNext(false);
         ((HorizonPageAnim) mPageAnim).setCancel(false);
@@ -217,9 +217,6 @@ public class PageView extends View {
         if (!isPrepare) return;
         if (mPageLoader != null) {
             mPageLoader.drawPage(getBgBitmap(pageOnCur), pageOnCur);
-            if (mPageAnim instanceof SimulationPageAnim) {
-                ((SimulationPageAnim) mPageAnim).onPageDrawn(pageOnCur);
-            }
         }
         invalidate();
     }
@@ -257,6 +254,7 @@ public class PageView extends View {
 
     /**
      * 绘制横翻内容
+     *
      * @param pageOnCur 相对当前页的位置
      */
     public void drawContent(int pageOnCur) {
@@ -361,7 +359,7 @@ public class PageView extends View {
     /**
      * 获取 PageLoader
      */
-    public PageLoader getPageLoader(ReadBookActivity activity, BookShelfBean bookShelfBean) {
+    public PageLoader getPageLoader(ReadBookActivity activity, BookShelfBean bookShelfBean, PageLoader.Callback callback) {
         this.activity = activity;
         this.statusBarHeight = ImmersionBar.getStatusBarHeight(activity);
         // 判是否已经存在
@@ -370,13 +368,13 @@ public class PageView extends View {
         }
         // 根据书籍类型，获取具体的加载器
         if (!Objects.equals(bookShelfBean.getTag(), BookShelfBean.LOCAL_TAG)) {
-            mPageLoader = new PageLoaderNet(this, bookShelfBean);
+            mPageLoader = new PageLoaderNet(this, bookShelfBean, callback);
         } else {
             String fileSuffix = FileHelp.getFileSuffix(bookShelfBean.getNoteUrl());
             if (fileSuffix.equalsIgnoreCase(FileHelp.SUFFIX_EPUB)) {
-                mPageLoader = new PageLoaderEpub(this, bookShelfBean);
+                mPageLoader = new PageLoaderEpub(this, bookShelfBean, callback);
             } else {
-                mPageLoader = new PageLoaderText(this, bookShelfBean);
+                mPageLoader = new PageLoaderText(this, bookShelfBean, callback);
             }
         }
         // 判断是否 PageView 已经初始化完成

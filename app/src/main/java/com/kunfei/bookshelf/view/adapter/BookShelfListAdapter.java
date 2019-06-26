@@ -3,13 +3,13 @@ package com.kunfei.bookshelf.view.adapter;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -33,20 +33,22 @@ import com.kunfei.bookshelf.help.ItemTouchCallback;
 import com.kunfei.bookshelf.utils.theme.ThemeStore;
 import com.kunfei.bookshelf.view.adapter.base.OnItemClickListenerTwo;
 import com.kunfei.bookshelf.widget.BadgeView;
-import com.victor.loading.rotate.RotateLoading;
+import com.kunfei.bookshelf.widget.RotateLoading;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
 public class BookShelfListAdapter extends RecyclerView.Adapter<BookShelfListAdapter.MyViewHolder> implements BookShelfAdapter {
-
+    private boolean isArrange;
     private Activity activity;
     private List<BookShelfBean> books;
     private OnItemClickListenerTwo itemClickListener;
     private String bookshelfPx;
+    private HashSet<String> selectList = new HashSet<>();
 
     private ItemTouchCallback.OnItemTouchCallbackListener itemTouchCallbackListener = new ItemTouchCallback.OnItemTouchCallbackListener() {
         @Override
@@ -64,14 +66,36 @@ public class BookShelfListAdapter extends RecyclerView.Adapter<BookShelfListAdap
         }
     };
 
+
+    public BookShelfListAdapter(Activity activity) {
+        this.activity = activity;
+        books = new ArrayList<>();
+    }
+
+
     @Override
     public ItemTouchCallback.OnItemTouchCallbackListener getItemTouchCallbackListener() {
         return itemTouchCallbackListener;
     }
 
-    public BookShelfListAdapter(Activity activity) {
-        this.activity = activity;
-        books = new ArrayList<>();
+    @Override
+    public void setArrange(boolean isArrange) {
+        selectList.clear();
+        this.isArrange = isArrange;
+        notifyDataSetChanged();
+    }
+
+    @Override
+    public void selectAll() {
+        if (selectList.size() == books.size()) {
+            selectList.clear();
+        } else {
+            for (BookShelfBean bean : books) {
+                selectList.add(bean.getNoteUrl());
+            }
+        }
+        notifyDataSetChanged();
+        itemClickListener.onClick(null, 0);
     }
 
     @Override
@@ -97,14 +121,36 @@ public class BookShelfListAdapter extends RecyclerView.Adapter<BookShelfListAdap
 
     @Override
     public void onBindViewHolder(@NonNull MyViewHolder holder, @SuppressLint("RecyclerView") int index) {
-        holder.itemView.setBackgroundColor(ThemeStore.backgroundColor(activity));
         final BookShelfBean bookShelfBean = books.get(index);
+        holder.itemView.setBackgroundColor(ThemeStore.backgroundColor(activity));
+        if (isArrange) {
+            if (selectList.contains(bookShelfBean.getNoteUrl())) {
+                holder.vwSelect.setBackgroundResource(R.color.ate_button_disabled_light);
+            } else {
+                holder.vwSelect.setBackgroundColor(Color.TRANSPARENT);
+            }
+            holder.vwSelect.setVisibility(View.VISIBLE);
+            holder.vwSelect.setOnClickListener(v -> {
+                if (selectList.contains(bookShelfBean.getNoteUrl())) {
+                    selectList.remove(bookShelfBean.getNoteUrl());
+                    holder.vwSelect.setBackgroundColor(Color.TRANSPARENT);
+                } else {
+                    selectList.add(bookShelfBean.getNoteUrl());
+                    holder.vwSelect.setBackgroundResource(R.color.ate_button_disabled_light);
+                }
+                itemClickListener.onClick(v, index);
+            });
+        } else {
+            holder.vwSelect.setVisibility(View.GONE);
+        }
         BookInfoBean bookInfoBean = bookShelfBean.getBookInfoBean();
         if (!activity.isFinishing()) {
             if (TextUtils.isEmpty(bookShelfBean.getCustomCoverPath())) {
                 Glide.with(activity).load(bookInfoBean.getCoverUrl())
-                        .apply(new RequestOptions().dontAnimate().diskCacheStrategy(DiskCacheStrategy.RESOURCE)
-                                .centerCrop().placeholder(R.drawable.img_cover_default))
+                        .dontAnimate()
+                        .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                        .centerCrop()
+                        .placeholder(R.drawable.img_cover_default)
                         .into(holder.ivCover);
             } else if (bookShelfBean.getCustomCoverPath().startsWith("http")) {
                 Glide.with(activity).load(bookShelfBean.getCustomCoverPath())
@@ -126,8 +172,10 @@ public class BookShelfListAdapter extends RecyclerView.Adapter<BookShelfListAdap
                         .into(holder.ivCover);
             } else {
                 Glide.with(activity).load(new File(bookShelfBean.getCustomCoverPath()))
-                        .apply(new RequestOptions().dontAnimate().diskCacheStrategy(DiskCacheStrategy.RESOURCE)
-                                .centerCrop().placeholder(R.drawable.img_cover_default))
+                        .dontAnimate()
+                        .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
+                        .centerCrop()
+                        .placeholder(R.drawable.img_cover_default)
                         .into(holder.ivCover);
             }
         }
@@ -187,6 +235,7 @@ public class BookShelfListAdapter extends RecyclerView.Adapter<BookShelfListAdap
     @Override
     public synchronized void replaceAll(List<BookShelfBean> newDataS, String bookshelfPx) {
         this.bookshelfPx = bookshelfPx;
+        selectList.clear();
         if (null != newDataS && newDataS.size() > 0) {
             BookshelfHelp.order(newDataS, bookshelfPx);
             books = newDataS;
@@ -194,6 +243,9 @@ public class BookShelfListAdapter extends RecyclerView.Adapter<BookShelfListAdap
             books.clear();
         }
         notifyDataSetChanged();
+        if (isArrange) {
+            itemClickListener.onClick(null, 0);
+        }
     }
 
     @Override
@@ -201,8 +253,13 @@ public class BookShelfListAdapter extends RecyclerView.Adapter<BookShelfListAdap
         return books;
     }
 
+    @Override
+    public HashSet<String> getSelected() {
+        return selectList;
+    }
+
     class MyViewHolder extends RecyclerView.ViewHolder {
-        FrameLayout flContent;
+        ViewGroup flContent;
         ImageView ivCover;
         BadgeView bvUnread;
         TextView tvName;
@@ -210,6 +267,7 @@ public class BookShelfListAdapter extends RecyclerView.Adapter<BookShelfListAdap
         TextView tvRead;
         TextView tvLast;
         RotateLoading rotateLoading;
+        View vwSelect;
 
         MyViewHolder(View itemView) {
             super(itemView);
@@ -222,6 +280,7 @@ public class BookShelfListAdapter extends RecyclerView.Adapter<BookShelfListAdap
             tvAuthor = itemView.findViewById(R.id.tv_author);
             rotateLoading = itemView.findViewById(R.id.rl_loading);
             rotateLoading.setLoadingColor(ThemeStore.accentColor(itemView.getContext()));
+            vwSelect = itemView.findViewById(R.id.vw_select);
         }
     }
 
